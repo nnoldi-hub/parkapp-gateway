@@ -134,30 +134,41 @@ class GatewayService : Service() {
     private fun makeCall(phone: String) {
         val simSlot = Prefs.simSlot(applicationContext)
         val uri = Uri.parse("tel:$phone")
+        val telecom = getSystemService(android.telecom.TelecomManager::class.java)
+        val extras = android.os.Bundle()
+
+        // Selectare SIM specific dacă e configurat
         if (simSlot > 0) {
             try {
                 if (checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE)
                         == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    val telecom = getSystemService(android.telecom.TelecomManager::class.java)
                     val accounts = telecom?.callCapablePhoneAccounts
                     val idx = simSlot - 1
                     if (accounts != null && idx < accounts.size) {
-                        val intent = Intent(Intent.ACTION_CALL, uri)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            .putExtra(
-                                android.telecom.TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE,
-                                accounts[idx]
-                            )
-                        startActivity(intent)
-                        return
+                        extras.putParcelable(
+                            android.telecom.TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE,
+                            accounts[idx]
+                        )
                     }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Eroare selectare SIM $simSlot: ${e.message}")
             }
         }
-        // Fallback – SIM implicit
-        startActivity(Intent(Intent.ACTION_CALL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+
+        // placeCall() funcționează din background (fără a lansa Activity)
+        try {
+            if (checkSelfPermission(android.Manifest.permission.CALL_PHONE)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                telecom?.placeCall(uri, extras)
+                Log.i(TAG, "placeCall() -> $phone (SIM slot=$simSlot)")
+            } else {
+                Log.e(TAG, "Lipsă permisiune CALL_PHONE")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "placeCall() eșuat: ${e.message} – fallback startActivity")
+            startActivity(Intent(Intent.ACTION_CALL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
     }
 
     // ─── Notificări ─────────────────────────────────────────────────
