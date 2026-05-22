@@ -10,6 +10,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.parkapp.gateway.MainActivity
@@ -27,6 +28,7 @@ class GatewayService : Service() {
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
+    private var wakeLock: PowerManager.WakeLock? = null
 
     companion object {
         const val NOTIF_ID = 1001
@@ -50,14 +52,39 @@ class GatewayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIF_ID, buildNotif("Activ – aștept comenzi…"))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIF_ID, buildNotif("Activ – aștept comenzi…"),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
+        } else {
+            startForeground(NOTIF_ID, buildNotif("Activ – aștept comenzi…"))
+        }
+        acquireWakeLock()
         startPolling()
         return START_STICKY
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // Repornește serviciul dacă utilizatorul îl închide din recent apps
+        val restart = Intent(applicationContext, GatewayService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            applicationContext.startForegroundService(restart)
+        else
+            applicationContext.startService(restart)
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
+        wakeLock?.release()
         scope.cancel()
         super.onDestroy()
+    }
+
+    private fun acquireWakeLock() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "ParkApp::GatewayWakeLock"
+        ).apply { acquire(10 * 60 * 60 * 1000L) } // max 10 ore
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
