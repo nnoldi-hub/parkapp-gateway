@@ -1,10 +1,15 @@
 package com.parkapp.gateway
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.parkapp.gateway.databinding.ActivityMainBinding
 import com.parkapp.gateway.service.GatewayService
@@ -22,6 +27,7 @@ class MainActivity : AppCompatActivity() {
 
         loadPrefs()
         requestNeededPermissions()
+        requestIgnoreBatteryOptimizations()
 
         b.btnSave.setOnClickListener {
             if (savePrefs()) Toast.makeText(this, "Setări salvate", Toast.LENGTH_SHORT).show()
@@ -69,6 +75,26 @@ class MainActivity : AppCompatActivity() {
             b.tvStatus.text = "● Serviciu OPRIT"
             b.tvStatus.setTextColor(getColor(R.color.status_stopped))
             b.btnToggle.text = "Pornește serviciul"
+        }
+    }
+
+    private fun requestIgnoreBatteryOptimizations() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            AlertDialog.Builder(this)
+                .setTitle("Dezactivare optimizare baterie")
+                .setMessage("Pentru ca serviciul să rămână activ în fundal (mai ales pe Samsung), dezactivați optimizarea bateriei pentru această aplicație.\n\nApăsați OK → găsiți ParkApp Gateway → selectați \"Fără restricții\".")
+                .setPositiveButton("Deschide setările") { _, _ ->
+                    try {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:$packageName"))
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    }
+                }
+                .setNegativeButton("Ignoră", null)
+                .show()
         }
     }
 
