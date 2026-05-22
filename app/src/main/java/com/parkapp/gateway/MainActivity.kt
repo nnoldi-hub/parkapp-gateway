@@ -25,9 +25,22 @@ class MainActivity : AppCompatActivity() {
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
 
+        // Setup spinner SIM
+        val simOptions = arrayOf("Auto (implicit)", "SIM 1", "SIM 2")
+        b.spinnerSim.adapter = android.widget.ArrayAdapter(
+            this, android.R.layout.simple_spinner_item, simOptions
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+
         loadPrefs()
         requestNeededPermissions()
         requestIgnoreBatteryOptimizations()
+
+        // Auto-pornire serviciu dacă era activ înainte
+        if (Prefs.isServiceOn(this)) {
+            GatewayService.start(this)
+            serviceRunning = true
+            updateUi()
+        }
 
         b.btnSave.setOnClickListener {
             if (savePrefs()) Toast.makeText(this, "Setări salvate", Toast.LENGTH_SHORT).show()
@@ -37,10 +50,12 @@ class MainActivity : AppCompatActivity() {
             if (serviceRunning) {
                 GatewayService.stop(this)
                 serviceRunning = false
+                Prefs.setServiceOn(this, false)
             } else {
                 if (savePrefs()) {
                     GatewayService.start(this)
                     serviceRunning = true
+                    Prefs.setServiceOn(this, true)
                 }
             }
             updateUi()
@@ -51,18 +66,20 @@ class MainActivity : AppCompatActivity() {
         b.editUrl.setText(Prefs.serverUrl(this))
         b.editSecret.setText(Prefs.secret(this))
         b.editPoll.setText(Prefs.pollSec(this).toString())
+        b.spinnerSim.setSelection(Prefs.simSlot(this))
     }
 
     private fun savePrefs(): Boolean {
         val url    = b.editUrl.text.toString().trim()
         val secret = b.editSecret.text.toString().trim()
         val poll   = b.editPoll.text.toString().toIntOrNull() ?: 15
+        val sim    = b.spinnerSim.selectedItemPosition
 
         if (url.isEmpty() || secret.isEmpty()) {
             Toast.makeText(this, "URL server și secret sunt obligatorii", Toast.LENGTH_SHORT).show()
             return false
         }
-        Prefs.save(this, url, secret, poll)
+        Prefs.save(this, url, secret, poll, sim)
         return true
     }
 
@@ -102,6 +119,8 @@ class MainActivity : AppCompatActivity() {
         val needed = mutableListOf<String>()
         if (checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED)
             needed.add(Manifest.permission.CALL_PHONE)
+        if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
+            needed.add(Manifest.permission.READ_PHONE_STATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             needed.add(Manifest.permission.POST_NOTIFICATIONS)

@@ -9,8 +9,8 @@ import com.parkapp.gateway.util.Prefs
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            // Pornire automată numai dacă sunt configurate
-            if (Prefs.serverUrl(context).isNotEmpty() && Prefs.secret(context).isNotEmpty()) {
+            // Repornire automată dacă serviciul era activ înainte de restart
+            if (Prefs.isServiceOn(context) && Prefs.serverUrl(context).isNotEmpty()) {
                 GatewayService.start(context)
             }
         }

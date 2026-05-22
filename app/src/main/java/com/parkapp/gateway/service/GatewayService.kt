@@ -132,9 +132,32 @@ class GatewayService : Service() {
     }
 
     private fun makeCall(phone: String) {
-        val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$phone"))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(intent)
+        val simSlot = Prefs.simSlot(applicationContext)
+        val uri = Uri.parse("tel:$phone")
+        if (simSlot > 0) {
+            try {
+                if (checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE)
+                        == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    val telecom = getSystemService(android.telecom.TelecomManager::class.java)
+                    val accounts = telecom?.callCapablePhoneAccounts
+                    val idx = simSlot - 1
+                    if (accounts != null && idx < accounts.size) {
+                        val intent = Intent(Intent.ACTION_CALL, uri)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            .putExtra(
+                                android.telecom.TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE,
+                                accounts[idx]
+                            )
+                        startActivity(intent)
+                        return
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Eroare selectare SIM $simSlot: ${e.message}")
+            }
+        }
+        // Fallback – SIM implicit
+        startActivity(Intent(Intent.ACTION_CALL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     // ─── Notificări ─────────────────────────────────────────────────
